@@ -119,33 +119,165 @@ export const DATA = {
   ],
   projects: [
     {
-      title: "DataMate",
-      href: "https://github.com/PRANJALRANA11/datamate",
-      dates: "Jan 2024 - Feb 2024",
+      title: "Supogen",
+      href: "https://supogen.com",
+      dates: "April 2023 - March 2024",
       active: true,
       description:
-        "DataMate is your data assistant. A conversational interface for your data where you can load, clean, transform, and visualize without a single line of code.",
+        "Technical Teams use this tool to speed up there support workflows",
       technologies: [
-        "FastApi",
-        "Typescript",
-        "React",
-        "Jupyter Kernel",
-        "Gemini Pro",
+        "Next.js",
+        "discord",
+        "github oauth",
+        "Open AI",
+        "Postgres",
+        "Fastapi",
       ],
       links: [
         {
           type: "Website",
-          href: "https://github.com/PRANJALRANA11/datamate",
+          href: "https://supogen.com",
+          icon: <Icons.globe className="size-3" />,
+        },
+        {
+          type: "Source",
+          href: "https://github.com/VARUNCHOPRA11/SupogenFe",
+          icon: <Icons.github className="size-3" />,
+        },
+      ],
+      image: "",
+      video: "https://3rlswxutjhdzbxmm.public.blob.vercel-storage.com/demo.mp4",
+    },
+    {
+      title: "Property Finder",
+      href: "https://kendal-assignment.vercel.app",
+      dates: "April 2023 - March 2024",
+      active: true,
+      description:
+        "This tool helps you to locate a property and list properties in a region.",
+      technologies: ["Next.js", "Appwrite", "Maps Api", "Shadcn"],
+      links: [
+        {
+          type: "Website",
+          href: "https://kendal-assignment.vercel.app",
           icon: <Icons.globe className="size-3" />,
         },
       ],
-      image:
-        "https://pranjal-rana.vercel.app/_next/image?url=%2Fimages%2Fdatadm.png&w=2048&q=75",
-      video: "",
+      image: "",
+      video:
+        "https://tga5khbbk9a1lpph.public.blob.vercel-storage.com/Screen%20Recording%202025-11-23%20at%205.00.23%E2%80%AFPM.mp4",
     },
     {
+      title: "Voicy",
+      href: "https://voice-ai-builds.vercel.app",
+      dates: "May 2024 - June 2024",
+      active: true,
+      description:
+        "This is an empathetic bot, which also captures your engagement levels.",
+      technologies: ["Next.js", "hume", "Shadcn"],
+      links: [
+        {
+          type: "Website",
+          href: "https://voice-ai-builds.vercel.app",
+          icon: <Icons.globe className="size-3" />,
+        },
+        {
+          type: "Source",
+          href: "https://github.com/PRANJALRANA11/Voice-AI",
+          icon: <Icons.github className="size-3" />,
+        },
+      ],
+      image: "",
+      video:
+        "https://tga5khbbk9a1lpph.public.blob.vercel-storage.com/Screen%20Recording%202025-11-23%20at%204.54.56%E2%80%AFPM.mp4",
+    },
+    {
+      title: "Real-Time Video Chat App with Live Streaming",
+      href: "https://drive.google.com/file/d/16Lh_EO_piVjed7LbfEv75Z3An8auwPyd/view?usp=sharing",
+      dates: "April 2023 - March 2024",
+      active: true,
+      description:
+        "Here we can join the room of a video chat and simultaneusly live stream that call as a youtube playback",
+      technologies: ["Reactjs", "Hono", "FFmpeg", "MediaSoup"],
+      links: [
+        {
+          type: "Demo",
+          href: "https://drive.google.com/file/d/16Lh_EO_piVjed7LbfEv75Z3An8auwPyd/view?usp=sharing",
+          icon: <Icons.youtube className="size-3" />,
+        },
+        {
+          type: "Source",
+          href: "https://github.com/PRANJALRANA11/Realtime-video-chat-app-with-live-stream",
+          icon: <Icons.github className="size-3" />,
+        },
+      ],
+      image: "",
+      video:
+        "https://tga5khbbk9a1lpph.public.blob.vercel-storage.com/Screen%20Recording%202025-11-23%20at%205.27.03%E2%80%AFPM.mp4",
+    },
+    {
+      title: "Cally",
+      href: "https://callyyai.vercel.app",
+      dates: "May 2025 - June 2025",
+      active: true,
+      description:
+        "Cally is your dentist booking assistant to whom you can call and book your appointments.",
+      technologies: [
+        "Next.js",
+        "Elevenlabs",
+        "Cerebras",
+        "Llama",
+        "Aws",
+        "Twilio",
+        "Assembly AI",
+      ],
+      links: [
+        {
+          type: "Demo",
+          href: "https://www.loom.com/share/df386b2eabff406d87d36dc1abc3d871",
+          icon: <Icons.youtube className="size-3" />,
+        },
+        {
+          type: "Website",
+          href: "https://callyyai.vercel.app",
+          icon: <Icons.globe className="size-3" />,
+        },
+        {
+          type: "Source",
+          href: "https://github.com/PRANJALRANA11/Cally",
+          icon: <Icons.github className="size-3" />,
+        },
+      ],
+      image: "/cally-demo.png",
+      video: "",
+    },
+
+    {
+      title: "Arc",
+      href: "https://arc-dev-flax.vercel.app",
+      dates: "April 2023 - March 2024",
+      active: true,
+      description: "This tools helps you create react ui in seconds",
+      technologies: ["Next.js", "Web Containers", "Open AI", "Shadcn"],
+      links: [
+        {
+          type: "Website",
+          href: "https://arc-dev-flax.vercel.app",
+          icon: <Icons.globe className="size-3" />,
+        },
+        {
+          type: "Source",
+          href: "https://github.com/PRANJALRANA11/arc-dev",
+          icon: <Icons.github className="size-3" />,
+        },
+      ],
+      image: "/arc-demo.png",
+      video: "",
+    },
+
+    {
       title: "CompareLLM",
-      href: "llmpare.vercel.app/",
+      href: "https://llmpare.vercel.app/",
       dates: "June 2023 - Present",
       active: true,
       description:
@@ -175,6 +307,32 @@ export const DATA = {
       video: "",
     },
     {
+      title: "DataMate",
+      href: "https://pranjalrana11.github.io/datamate-csr/",
+      dates: "Jan 2024 - Feb 2024",
+      active: true,
+      description:
+        "DataMate is your data assistant. A conversational interface for your data where you can load, clean, transform, and visualize without a single line of code.",
+      technologies: [
+        "FastApi",
+        "Typescript",
+        "React",
+        "Jupyter Kernel",
+        "Gemini Pro",
+      ],
+      links: [
+        {
+          type: "Website",
+          href: "https://github.com/PRANJALRANA11/datamate",
+          icon: <Icons.globe className="size-3" />,
+        },
+      ],
+      image:
+        "https://pranjal-rana.vercel.app/_next/image?url=%2Fimages%2Fdatadm.png&w=2048&q=75",
+      video: "",
+    },
+
+    {
       title: "VISION AI",
       href: "https://github.com/VarunChopra11/VisionAssistant",
       dates: "April 2023 - September 2023",
@@ -195,24 +353,6 @@ export const DATA = {
         },
       ],
       image: "/vision.png",
-      video: "",
-    },
-    {
-      title: "Property Finder",
-      href: "https://kendal-assignment.vercel.app",
-      dates: "April 2023 - March 2024",
-      active: true,
-      description:
-        "This tool helps you to locate a property and list properties in a region.",
-      technologies: ["Next.js", "Appwrite", "Maps Api", "Shadcn"],
-      links: [
-        {
-          type: "Website",
-          href: "https://kendal-assignment.vercel.app",
-          icon: <Icons.globe className="size-3" />,
-        },
-      ],
-      image: "/property.png",
       video: "",
     },
   ],
