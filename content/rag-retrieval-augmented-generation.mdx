@@ -1,0 +1,198 @@
+---
+title: "RAG Done Right — Building Retrieval-Augmented Generation That Actually Works"
+publishedAt: "2026-05-15"
+summary: "Everyone's building RAG systems, but most of them suck. Let's go beyond naive vector search and build RAG that actually retrieves relevant context and generates accurate answers."
+---
+
+Hey! Let's talk about RAG — Retrieval-Augmented Generation. It's the most popular pattern in AI engineering right now, and most implementations are terrible. Let's fix that.
+
+#### Why RAG Exists
+
+LLMs have three big problems:
+1. **Knowledge cutoff** — They don't know about events after their training date
+2. **Hallucination** — They confidently make up facts
+3. **No private data** — They can't access your company's internal docs
+
+RAG solves all three by retrieving relevant documents and stuffing them into the prompt. Instead of asking "What's our refund policy?", you first search your docs for the refund policy, then ask "Given this context: [refund policy doc], what's our refund policy?"
+
+Simple idea. Hard to get right.
+
+#### The Naive RAG Pipeline
+
+Most tutorials teach you this:
+
+```
+1. CHUNK: Split documents into ~500 token chunks
+2. EMBED: Convert each chunk to a vector embedding
+3. STORE: Save vectors in a vector database (Pinecone, Weaviate, etc.)
+4. RETRIEVE: When user asks a question, embed the query, find similar chunks
+5. GENERATE: Pass retrieved chunks + question to the LLM
+```
+
+```python
+# Naive RAG in ~20 lines
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.vectorstores import Chroma
+
+# Chunk
+splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+chunks = splitter.split_documents(documents)
+
+# Embed & Store
+vectorstore = Chroma.from_documents(chunks, OpenAIEmbeddings())
+
+# Retrieve & Generate
+query = "What is our refund policy?"
+relevant_chunks = vectorstore.similarity_search(query, k=4)
+context = "\n".join([c.page_content for c in relevant_chunks])
+
+response = llm(f"Context: {context}\n\nQuestion: {query}")
+```
+
+This works for demos. It fails in production. Here's why.
+
+#### Why Naive RAG Fails
+
+**Bad chunking**: Fixed-size chunks split sentences mid-thought. A chunk might have the question but not the answer, or vice versa.
+
+**Irrelevant retrieval**: Vector similarity isn't the same as relevance. "How do I reset my password?" might retrieve docs about "password security best practices" instead of the actual reset instructions.
+
+**Lost context**: A chunk saying "As mentioned above, the deadline is 30 days" is useless without knowing what "above" refers to.
+
+**Keyword mismatch**: If your docs say "reimbursement" and the user asks about "refund", pure vector search might miss it (though embeddings handle this better than keyword search).
+
+#### Advanced Chunking Strategies
+
+**Semantic chunking**: Split at natural boundaries (paragraphs, sections, topic changes) instead of fixed token counts:
+
+```python
+# Split by headers and paragraphs, not arbitrary token limits
+from langchain.text_splitter import MarkdownHeaderTextSplitter
+
+headers = [("#", "h1"), ("##", "h2"), ("###", "h3")]
+splitter = MarkdownHeaderTextSplitter(headers_to_split_on=headers)
+chunks = splitter.split_text(markdown_doc)
+```
+
+**Parent-child chunking**: Store small chunks for precise retrieval but return the larger parent chunk for context:
+
+```python
+# Small chunks for retrieval (better precision)
+# Large chunks for context (better comprehension)
+child_chunks = split(document, size=200)  # For embedding
+parent_chunks = split(document, size=1000)  # For context
+
+# When a child chunk matches, return its parent
+matched_child = vector_search(query)
+parent = get_parent(matched_child)
+context = parent.text  # Full context, not just the matching snippet
+```
+
+**Overlapping windows**: Overlap chunks by 10-20% so sentences aren't cut mid-thought.
+
+#### Hybrid Search — Vector + BM25
+
+Pure vector search misses exact keyword matches. Pure keyword search misses semantic similarity. Combine them:
+
+```python
+# Vector search: semantic similarity
+vector_results = vectorstore.similarity_search(query, k=10)
+
+# BM25 keyword search: exact term matching
+bm25_results = bm25_index.search(query, k=10)
+
+# Reciprocal Rank Fusion: combine and re-rank
+def rrf(results_lists, k=60):
+    scores = {}
+    for results in results_lists:
+        for rank, doc in enumerate(results):
+            doc_id = doc.id
+            scores[doc_id] = scores.get(doc_id, 0) + 1 / (k + rank + 1)
+    return sorted(scores.items(), key=lambda x: -x[1])
+
+final_results = rrf([vector_results, bm25_results])
+```
+
+Hybrid search catches both "what does the return policy say" (semantic) and "section 4.2 of the employee handbook" (keyword).
+
+#### Re-Ranking With Cross-Encoders
+
+Bi-encoder embeddings (what vector stores use) are fast but approximate. **Cross-encoders** are slower but much more accurate — they look at the query and document together:
+
+```python
+from sentence_transformers import CrossEncoder
+
+reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-12-v2')
+
+# First pass: fast retrieval (get 20 candidates)
+candidates = vectorstore.similarity_search(query, k=20)
+
+# Second pass: accurate re-ranking (pick top 5)
+pairs = [(query, doc.page_content) for doc in candidates]
+scores = reranker.predict(pairs)
+
+top_5 = sorted(zip(candidates, scores), key=lambda x: -x[1])[:5]
+```
+
+This two-stage approach (fast retrieval → accurate re-ranking) is how production search engines work. It's dramatically more accurate than vector search alone.
+
+#### Query Transformation
+
+Sometimes the user's query isn't good for retrieval. Transform it:
+
+**HyDE (Hypothetical Document Embeddings)**: Ask the LLM to generate a hypothetical answer, then use *that* as the search query. A hypothetical answer is often more similar to the actual document than the question is:
+
+```python
+# User asks: "How do I handle authentication?"
+hypothetical = llm("Write a short paragraph answering: How do I handle authentication?")
+# "Authentication can be handled using JWT tokens. First, the user submits..."
+
+# Search with the hypothetical answer — it's more similar to actual docs
+results = vectorstore.similarity_search(hypothetical, k=5)
+```
+
+**Multi-query**: Generate multiple search queries from different angles:
+
+```python
+queries = llm("Generate 3 different search queries for: How do I handle auth?")
+# 1. "JWT token authentication implementation"
+# 2. "user login session management"
+# 3. "OAuth2 authentication flow setup"
+
+all_results = []
+for q in queries:
+    all_results.extend(vectorstore.similarity_search(q, k=3))
+# Deduplicate and re-rank
+```
+
+#### Evaluation — How Do You Know Your RAG Works?
+
+You need metrics:
+
+- **Faithfulness**: Does the answer only use information from the retrieved context? (No hallucination)
+- **Relevance**: Are the retrieved chunks actually relevant to the question?
+- **Answer correctness**: Is the final answer correct?
+- **Recall**: Did retrieval find all the relevant chunks, not just some?
+
+Tools like **RAGAS** and **DeepEval** automate this with LLM-as-judge evaluation.
+
+#### Production Tips
+
+1. **Metadata filtering**: Don't just search all docs. Filter by department, date, document type first. Then do vector search within the filtered set.
+2. **Caching**: Same question → same answer. Cache frequent queries.
+3. **Citation extraction**: Always tell the LLM to cite which chunks it used. Users need to verify.
+4. **Chunk overlap with source tracking**: Know which document each chunk came from for attribution.
+5. **Monitor retrieval quality**: Log queries, retrieved chunks, and user feedback. Find patterns in failures.
+
+#### The Bottom Line
+
+1. Naive RAG is a starting point, not a solution.
+2. Smart chunking + hybrid search + re-ranking = dramatically better retrieval.
+3. Query transformation helps when users ask vague questions.
+4. Evaluate with metrics, not vibes.
+5. The retrieval step matters more than the generation step — if you retrieve garbage, no LLM can save you.
+
+Build your RAG pipeline like a search engine, not a demo.
+
+See you in the next one!

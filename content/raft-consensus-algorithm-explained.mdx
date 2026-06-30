@@ -1,0 +1,117 @@
+---
+title: "Raft Consensus Algorithm — How Distributed Systems Agree on Things"
+publishedAt: "2026-04-05"
+summary: "How do multiple servers agree on the same value when any of them could fail at any time? Raft makes distributed consensus understandable — let's walk through leader election, log replication, and safety guarantees."
+---
+
+Hey! Let's talk about one of the most elegant algorithms in distributed systems — **Raft**.
+
+Here's the fundamental problem: you have 5 servers, and they all need to agree on the same sequence of operations. But any of them could crash, restart, or lose network connectivity at any time. How do you get them to agree?
+
+This is the **consensus problem**, and it's way harder than it sounds.
+
+#### Why Not Just Use Paxos?
+
+Before Raft, the go-to algorithm was **Paxos**, designed by Leslie Lamport. Paxos works. It's been proven correct. It's also nearly impossible to understand or implement correctly.
+
+Seriously — Lamport himself said the algorithm was so hard to understand that he originally presented it as a story about a fictional Greek parliament, and people *still* didn't get it.
+
+Diego Ongaro and John Ousterhout designed Raft in 2014 with one explicit goal: **understandability**. Same guarantees as Paxos, but you can actually explain it to someone.
+
+#### The Key Insight: Strong Leader
+
+Raft's trick is decomposing consensus into three sub-problems and using a **strong leader** to simplify everything:
+
+1. **Leader Election** — Pick one server to be the boss
+2. **Log Replication** — The leader receives all writes and replicates them
+3. **Safety** — Guarantee that if a log entry is committed, it will appear in all future leaders' logs
+
+#### Leader Election
+
+Every Raft node is in one of three states: **Leader**, **Follower**, or **Candidate**.
+
+Time is divided into **terms** (numbered epochs). Each term has at most one leader.
+
+Here's how election works:
+
+1. All nodes start as **followers**, listening for heartbeats from a leader
+2. If a follower doesn't hear from a leader within a random timeout (150-300ms), it becomes a **candidate**
+3. The candidate increments its term, votes for itself, and sends `RequestVote` RPCs to all other nodes
+4. Other nodes vote for the first candidate they hear from in that term (first-come-first-served)
+5. If a candidate gets votes from a **majority** (3 out of 5), it becomes the leader
+6. The leader starts sending heartbeats to maintain authority
+
+```
+Term 1: [Leader: S1] → S1 crashes
+         ↓
+Term 2: S3 times out first → becomes Candidate
+        S3 gets votes from S2, S4 → S3 becomes Leader
+        S5 hears about new leader → becomes Follower
+```
+
+The **randomized timeout** is crucial — it prevents all nodes from becoming candidates simultaneously (split vote). Simple but effective.
+
+#### Log Replication
+
+Once elected, the leader handles all client requests:
+
+1. Client sends a write to the leader
+2. Leader appends the entry to its log
+3. Leader sends `AppendEntries` RPCs to all followers
+4. Once a **majority** of followers acknowledge, the entry is **committed**
+5. Leader applies the entry to its state machine and responds to the client
+6. Followers learn about the commit and apply it too
+
+```
+Leader Log:   [1:SET x=1] [2:SET y=2] [3:SET x=3]
+                                         ↑ committed (3/5 have it)
+Follower A:   [1:SET x=1] [2:SET y=2] [3:SET x=3]  ✓
+Follower B:   [1:SET x=1] [2:SET y=2] [3:SET x=3]  ✓
+Follower C:   [1:SET x=1] [2:SET y=2]               (catching up)
+Follower D:   [1:SET x=1]                           (way behind)
+```
+
+If a follower is behind, the leader detects this and sends the missing entries. No data loss — the leader's log is the source of truth.
+
+#### Safety: The Election Restriction
+
+Here's a subtle but critical rule: **a candidate can only win an election if its log is at least as up-to-date as a majority of nodes**.
+
+When a node receives a `RequestVote`, it checks: "Is the candidate's last log entry at least as recent as mine?" If not, it refuses to vote.
+
+This guarantees that the new leader always has all committed entries. No committed data is ever lost during a leader transition.
+
+#### A Step-by-Step Failure Scenario
+
+Let's walk through a leader crash:
+
+1. **Term 3**: S1 is leader. It commits entries 1-10.
+2. S1 receives entry 11, sends it to S2 and S3, but crashes before S4 and S5 get it.
+3. Entry 11 is NOT committed (only 3/5 — S1, S2, S3 — have it, but S1 is down, so only 2/5 active nodes have it).
+4. **Term 4**: S4 times out, becomes candidate. S4's log only goes to entry 10.
+5. S4 asks S2 for a vote. S2's log goes to entry 11, which is more recent. S2 **refuses** to vote for S4.
+6. S5 times out too, votes for S4. But S4 only has 2 votes (itself + S5). Not a majority.
+7. S2 times out, becomes candidate. S2 has entry 11, which is more up-to-date. S3, S4, S5 all vote for S2.
+8. S2 becomes leader with entry 11 in its log. Entry 11 is preserved!
+
+Beautiful, right?
+
+#### Where Raft is Used
+
+- **etcd** — The backbone of Kubernetes cluster state
+- **CockroachDB** — Distributed SQL database, uses Raft for range-level consensus
+- **TiKV** — Distributed key-value store used by TiDB
+- **HashiCorp Consul** — Service mesh and key-value store
+- **Kafka (KRaft)** — Kafka's new metadata quorum replacing ZooKeeper
+
+#### Key Takeaways
+
+1. Raft achieves consensus through a strong leader pattern — one leader handles all writes.
+2. Randomized election timeouts prevent split votes elegantly.
+3. Entries are committed once a majority acknowledges them.
+4. The election restriction ensures no committed data is ever lost.
+5. It's equivalent to Paxos in guarantees but dramatically easier to understand and implement.
+
+If you want to go deeper, read the original Raft paper — it's genuinely one of the most readable CS papers out there.
+
+See you in the next one!

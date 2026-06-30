@@ -1,0 +1,143 @@
+---
+title: "Event-Driven Architecture — Patterns That Actually Scale"
+publishedAt: "2026-05-12"
+summary: "From event sourcing to CQRS to saga patterns — a practical look at event-driven architecture patterns, when to use them, and the hidden complexity nobody warns you about."
+---
+
+Hey! Let's talk about event-driven architecture — one of those patterns that sounds amazing in a conference talk but gets really messy in production if you don't understand the trade-offs.
+
+I've seen teams adopt event-driven patterns because "Netflix does it" without understanding why, and it always ends in tears. Let's make sure that doesn't happen to you.
+
+#### Why Event-Driven?
+
+In a traditional request-response system, Service A directly calls Service B. This creates **tight coupling** — if B is down, A fails. If B is slow, A is slow. If you need to add Service C that also cares about the same event, you modify A.
+
+Event-driven architecture flips this: Service A publishes an event ("OrderPlaced"), and anyone who cares subscribes to it. A doesn't know or care who's listening. **Decoupling at its finest.**
+
+Benefits:
+- Services can be developed, deployed, and scaled independently
+- Adding new consumers doesn't require changing the producer
+- Natural audit trail — every event is a record of what happened
+- Better resilience — consumers can process events at their own pace
+
+#### Event Sourcing — Store Events, Not State
+
+Instead of storing the *current state* of an entity, you store every *event* that happened to it.
+
+Traditional approach:
+```sql
+-- Account table: just the current balance
+UPDATE accounts SET balance = 500 WHERE id = 1;
+-- Previous balance? Gone. History? Gone.
+```
+
+Event sourcing approach:
+```
+Event 1: AccountCreated { id: 1, balance: 1000 }
+Event 2: MoneyWithdrawn { id: 1, amount: 200 }
+Event 3: MoneyDeposited { id: 1, amount: 50 }
+Event 4: MoneyWithdrawn { id: 1, amount: 350 }
+-- Current balance: 1000 - 200 + 50 - 350 = 500
+-- But now you have FULL history!
+```
+
+To get the current state, you **replay** all events. Yes, this gets slow as events pile up — that's where **snapshots** come in. Periodically save the current state and only replay events after the snapshot.
+
+**When event sourcing makes sense**: Financial systems, audit-heavy domains, systems where you need time-travel debugging.
+
+**When it doesn't**: Simple CRUD apps. If you're building a TODO list, please don't event-source it.
+
+#### CQRS — Separate Your Reads and Writes
+
+**Command Query Responsibility Segregation** means having separate models for reading and writing data.
+
+The write model handles commands (create, update, delete) and might be normalized, optimized for consistency. The read model is denormalized, optimized for fast queries.
+
+```
+Write Side:                    Read Side:
+┌─────────────────┐            ┌──────────────────┐
+│ Commands →      │  events    │ Optimized for    │
+│ Domain Logic →  │ ────────→  │ queries          │
+│ Event Store     │            │ (materialized    │
+│                 │            │  views)          │
+└─────────────────┘            └──────────────────┘
+```
+
+CQRS pairs naturally with event sourcing — write events to the event store, project them into read-optimized views.
+
+But here's the hidden cost: **your read model is eventually consistent**. A user creates an order, refreshes the page, and might not see it yet. You need to handle this in the UI (optimistic updates, "processing" states).
+
+#### Saga Pattern — Distributed Transactions Without 2PC
+
+In a microservices world, a single business operation might span multiple services. "Place an Order" involves the Order Service, Inventory Service, Payment Service, and Shipping Service. If payment fails, you need to undo the inventory reservation.
+
+The **saga pattern** handles this with a sequence of local transactions, each publishing events that trigger the next step. If a step fails, compensating transactions undo the previous steps.
+
+**Choreography** (event-based):
+```
+OrderService → publishes "OrderCreated"
+  InventoryService → listens, reserves stock, publishes "StockReserved"
+    PaymentService → listens, charges card, publishes "PaymentProcessed"
+      ShippingService → listens, schedules delivery
+
+If PaymentService fails:
+  PaymentService → publishes "PaymentFailed"
+    InventoryService → listens, releases stock
+    OrderService → listens, marks order as failed
+```
+
+**Orchestration** (central coordinator):
+```
+SagaOrchestrator:
+  1. Tell InventoryService → reserve stock
+  2. Tell PaymentService → charge card
+  3. If step 2 fails → tell InventoryService → release stock
+  4. If all succeed → tell ShippingService → schedule delivery
+```
+
+Choreography is more decoupled but harder to debug (the flow is implicit). Orchestration is easier to understand but creates a central point of coordination.
+
+#### Kafka vs RabbitMQ vs SQS
+
+**Apache Kafka**: Distributed log. Messages are persisted and can be replayed. Great for event sourcing, stream processing, and high-throughput scenarios. Consumers manage their own offset — they can re-read old messages.
+
+**RabbitMQ**: Traditional message broker. Messages are delivered and deleted. Better for task queues, request-reply patterns, and when you need complex routing (topic exchanges, headers-based routing).
+
+**Amazon SQS**: Managed queue service. Simple, reliable, infinite scale. No ordering guarantees in standard mode (FIFO mode available but with throughput limits). Great when you want zero operational overhead.
+
+Rule of thumb:
+- Need to replay events or do stream processing? → **Kafka**
+- Need complex routing and traditional pub/sub? → **RabbitMQ**
+- Want zero ops and just need a reliable queue? → **SQS**
+
+#### The Exactly-Once Delivery Myth
+
+Let's clear this up: **exactly-once delivery doesn't exist** in distributed systems. You get:
+
+- **At-most-once**: Fire and forget. Messages might be lost.
+- **At-least-once**: Retry until acknowledged. Messages might be delivered multiple times.
+
+"Exactly-once" is actually "at-least-once delivery + idempotent processing." You WILL get duplicate messages. Design your consumers to handle them:
+
+```python
+def process_payment(event):
+    # Use event ID as idempotency key
+    if already_processed(event.id):
+        return  # Skip duplicate
+    
+    charge_card(event.amount)
+    mark_processed(event.id)
+```
+
+#### Practical Pitfalls
+
+1. **Eventual consistency headaches**: Users expect instant feedback. Your UI needs optimistic updates.
+2. **Debugging event chains**: When something breaks in step 7 of a 10-step saga, tracing the issue across services is painful. Invest in distributed tracing (Jaeger, OpenTelemetry).
+3. **Schema evolution**: Your events are immutable. What happens when you need to add a field? You need versioning strategies.
+4. **Out-of-order events**: Messages might arrive out of order. Your consumers need to handle this gracefully.
+
+#### The Bottom Line
+
+Event-driven architecture is powerful but adds significant complexity. Start simple — most apps do fine with synchronous request-response. Introduce events where you need decoupling and scalability, not because it's trendy.
+
+Catch you later!

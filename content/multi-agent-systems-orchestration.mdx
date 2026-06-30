@@ -1,0 +1,203 @@
+---
+title: "Multi-Agent Systems — When One AI Agent Isn't Enough"
+publishedAt: "2026-06-08"
+summary: "What happens when you give multiple AI agents different roles and let them collaborate? From supervisor patterns to swarm intelligence, let's explore how multi-agent orchestration works and when it actually makes sense."
+---
+
+Hey! Let's talk about what happens when you go from one AI agent to many — multi-agent systems.
+
+The idea is seductive: instead of one agent doing everything, give specialized agents different roles and let them collaborate. A planner agent breaks down the task. A coder agent writes code. A reviewer agent checks it. A tester agent validates it.
+
+Sounds great in theory. Let's see how it actually works.
+
+#### Why Multi-Agent?
+
+Single agents hit limits:
+
+1. **Context window saturation** — One agent handling research, planning, coding, and testing fills up its context fast
+2. **Specialization** — A prompt optimized for code review is different from one optimized for code generation
+3. **Parallelism** — Multiple agents can work on independent subtasks simultaneously
+4. **Separation of concerns** — Easier to debug and iterate on individual agent behaviors
+
+#### Orchestration Patterns
+
+**Supervisor/Worker (Hub and Spoke)**:
+One agent (the supervisor) coordinates everything. It receives the task, delegates subtasks to worker agents, collects results, and synthesizes the final output.
+
+```python
+class Supervisor:
+    def __init__(self):
+        self.researcher = Agent(role="researcher", tools=[web_search])
+        self.coder = Agent(role="coder", tools=[code_executor])
+        self.reviewer = Agent(role="reviewer", tools=[])
+    
+    def execute(self, task):
+        # Plan
+        plan = self.plan(task)
+        
+        # Delegate
+        research = self.researcher.run(plan.research_task)
+        code = self.coder.run(plan.coding_task, context=research)
+        review = self.reviewer.run(f"Review this code: {code}")
+        
+        # Handle feedback
+        if review.has_issues:
+            code = self.coder.run(
+                f"Fix these issues: {review.issues}\nCode: {code}"
+            )
+        
+        return code
+```
+
+Pros: Clear control flow, easy to debug, predictable costs.
+Cons: Supervisor is a bottleneck, single point of failure.
+
+**Peer-to-Peer (Collaborative)**:
+Agents communicate directly with each other. No central coordinator.
+
+```
+Agent A (Researcher) → finds info → sends to Agent B
+Agent B (Writer) → drafts content → sends to Agent C
+Agent C (Editor) → edits → sends back to Agent B
+Agent B (Writer) → incorporates edits → sends to Agent A for fact-check
+```
+
+Pros: No bottleneck, more flexible conversations.
+Cons: Hard to control, can devolve into infinite loops, difficult to debug.
+
+**Hierarchical (Tree)**:
+Like supervisor/worker, but with multiple levels. A project manager agent delegates to team lead agents, who delegate to worker agents.
+
+```
+        Project Manager
+       /       |        \
+   Research   Engineering   QA
+   Lead       Lead          Lead
+   / \        / \           / \
+  R1  R2     E1  E2       Q1  Q2
+```
+
+Pros: Scales to complex projects, clear chains of responsibility.
+Cons: Slow (many LLM calls), expensive, over-engineered for most tasks.
+
+#### Communication Protocols
+
+**Shared Memory (Blackboard)**:
+All agents read from and write to a shared state. Simple and effective for small teams:
+
+```python
+shared_state = {
+    "task": "Build a REST API",
+    "research_notes": "",    # Researcher writes here
+    "code": "",              # Coder writes here
+    "review_comments": "",   # Reviewer writes here
+    "test_results": "",      # Tester writes here
+    "status": "planning"
+}
+
+# Each agent reads what it needs and writes its output
+def researcher_step(state):
+    state["research_notes"] = research(state["task"])
+    state["status"] = "researched"
+    return state
+```
+
+**Message Passing**:
+Agents send messages to specific other agents. More structured, better for complex workflows:
+
+```python
+class Agent:
+    def __init__(self, name):
+        self.inbox = []
+    
+    def send(self, recipient, message):
+        recipient.inbox.append({
+            "from": self.name,
+            "content": message
+        })
+    
+    def process_messages(self):
+        for msg in self.inbox:
+            response = self.think(msg)
+            if response.needs_reply:
+                self.send(msg["from"], response.content)
+        self.inbox.clear()
+```
+
+#### Real-World Multi-Agent Examples
+
+**Coding Agents (Planner + Coder + Reviewer)**:
+This is the most common and proven pattern. A planner analyzes requirements and creates an implementation plan. A coder writes the code. A reviewer checks for bugs, style issues, and edge cases. The coder iterates based on feedback.
+
+**Research Agents (Searcher + Analyst + Writer)**:
+A searcher finds relevant sources. An analyst extracts key facts and checks for contradictions. A writer synthesizes everything into a coherent report. Each agent specializes in a different skill.
+
+**Customer Support (Router + Specialist + Escalation)**:
+A router classifies the customer's issue. It routes to a billing specialist, technical support, or general FAQ agent. If none can help, an escalation agent involves a human.
+
+#### Cost and Latency Reality Check
+
+Here's what nobody tells you about multi-agent systems:
+
+**Cost**: Each agent call is an LLM invocation. A 4-agent system with 3 rounds of feedback = 12+ LLM calls for a single task. At $0.01-0.03 per call with GPT-4-class models, this adds up fast.
+
+**Latency**: Sequential agent calls add up. If each LLM call takes 2 seconds, a 4-step pipeline takes 8+ seconds. Parallelism helps but only where tasks are independent.
+
+**Diminishing returns**: Adding more agents doesn't linearly improve quality. After 2-3 specialized agents, you often hit a point where additional agents add more confusion than value.
+
+```
+1 agent:  Cost = $0.03, Latency = 2s,  Quality = 7/10
+2 agents: Cost = $0.08, Latency = 5s,  Quality = 8.5/10
+4 agents: Cost = $0.20, Latency = 12s, Quality = 9/10
+8 agents: Cost = $0.50, Latency = 25s, Quality = 8.5/10  ← diminishing returns!
+```
+
+#### When Single Agent Is Better
+
+Don't use multi-agent when:
+
+1. **The task is straightforward** — A single agent with the right tools handles most tasks fine
+2. **Latency matters** — Real-time applications can't afford multi-agent overhead
+3. **The agents need the same context** — If every agent needs the full conversation history, you're just duplicating context and cost
+4. **You can't clearly define roles** — If the boundaries between agents are fuzzy, they'll overlap and conflict
+
+#### Failure Handling
+
+Multi-agent systems fail in unique ways:
+
+- **Agent disagreement**: The coder writes one approach, the reviewer wants a completely different one, and they loop forever. Fix: Set a max iteration count and have the supervisor break ties.
+- **Lost context**: Information established by Agent A doesn't make it to Agent C. Fix: Structured shared state with all decisions recorded.
+- **Cascading failures**: Agent B fails, blocking Agent C and D. Fix: Timeout-based fallbacks and graceful degradation.
+
+**Human-in-the-Loop**: For high-stakes decisions, pause and ask a human:
+
+```python
+def execute_with_approval(agent, task, requires_approval=False):
+    result = agent.run(task)
+    
+    if requires_approval:
+        print(f"Agent '{agent.role}' wants to: {result.action}")
+        if input("Approve? [y/n] ") != 'y':
+            return agent.run(f"User rejected. Try a different approach: {task}")
+    
+    return result
+```
+
+#### Frameworks
+
+- **LangGraph**: State machine-based agent orchestration. Define nodes (agents) and edges (transitions). Very flexible.
+- **CrewAI**: Define agents with roles, goals, and backstories. Agents collaborate on tasks.
+- **AutoGen**: Microsoft's framework for multi-agent conversations. Good for debate-style agent interactions.
+- **Swarm** (OpenAI): Lightweight multi-agent handoff framework. Agents can transfer control to each other.
+
+#### The Bottom Line
+
+1. Start with a single agent. Add more only when you hit clear limits.
+2. Supervisor/worker is the safest pattern — start there.
+3. Keep the number of agents small (2-4) unless you have a very clear reason for more.
+4. Budget for 3-5x the cost and latency of a single agent.
+5. Always have a max iteration limit and human fallback.
+
+Multi-agent systems are the future of complex AI applications, but like microservices, they add complexity that you should only take on when the benefits are clear.
+
+Catch you later!

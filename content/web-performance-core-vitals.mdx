@@ -1,0 +1,216 @@
+---
+title: "Web Performance That Actually Matters — A Practical Guide to Core Web Vitals"
+publishedAt: "2026-05-30"
+summary: "LCP, INP, CLS — these aren't just Google metrics. They directly impact user experience and SEO. Here's a practical guide to measuring, debugging, and fixing Core Web Vitals in real applications."
+---
+
+Hey! Let's talk about web performance — not the theoretical kind, but the stuff that actually moves the needle for your users and your SEO rankings.
+
+Google's Core Web Vitals have become the de facto standard for measuring web performance. But instead of just memorizing abbreviations, let's understand what they measure, why they matter, and how to fix them.
+
+#### The Three Core Web Vitals
+
+**LCP (Largest Contentful Paint)** — How fast does the main content appear?
+- Measures when the largest visible element (hero image, heading, video poster) finishes rendering
+- Target: under **2.5 seconds**
+- This is what users perceive as "the page loaded"
+
+**INP (Interaction to Next Paint)** — How responsive is the page?
+- Replaced FID (First Input Delay) in March 2024
+- Measures the delay between a user interaction (click, tap, keypress) and the next visual update
+- Target: under **200 milliseconds**
+- Unlike FID which only measured the *first* interaction, INP measures *all* interactions and reports the worst one
+
+**CLS (Cumulative Layout Shift)** — Does the page jump around?
+- Measures unexpected layout shifts (elements moving after initial render)
+- Target: under **0.1**
+- You know that infuriating moment when you're about to tap a button and an ad loads above it, pushing the button down? That's CLS.
+
+#### Measuring Core Web Vitals
+
+**Lab tools** (synthetic, controlled environment):
+- **Lighthouse** — Built into Chrome DevTools. Great for development.
+- **PageSpeed Insights** — Google's web tool. Shows both lab and field data.
+- **WebPageTest** — More detailed waterfall analysis.
+
+**Field tools** (real user data — this is what Google actually uses for ranking):
+- **Chrome UX Report (CrUX)** — Aggregated real-user data from Chrome
+- **web-vitals JS library** — Capture metrics in your own analytics
+
+```javascript
+import { onLCP, onINP, onCLS } from 'web-vitals';
+
+onLCP(metric => sendToAnalytics('LCP', metric.value));
+onINP(metric => sendToAnalytics('INP', metric.value));
+onCLS(metric => sendToAnalytics('CLS', metric.value));
+```
+
+#### Fixing LCP
+
+LCP is usually about one thing: **how fast can you render the biggest element on screen**.
+
+**1. Optimize images** (the #1 LCP culprit):
+```html
+<!-- Use modern formats -->
+<picture>
+  <source srcset="hero.avif" type="image/avif" />
+  <source srcset="hero.webp" type="image/webp" />
+  <img src="hero.jpg" alt="Hero" width="1200" height="600"
+       fetchpriority="high" decoding="async" />
+</picture>
+```
+
+**2. Preload critical resources**:
+```html
+<link rel="preload" as="image" href="/hero.avif" />
+<link rel="preload" as="font" href="/Inter.woff2"
+      type="font/woff2" crossorigin />
+```
+
+**3. Inline critical CSS**:
+```html
+<head>
+  <style>
+    /* Inline only above-the-fold critical styles */
+    .hero { background: #1a1a1a; min-height: 60vh; }
+    .nav { position: fixed; top: 0; }
+  </style>
+  <!-- Load the rest asynchronously -->
+  <link rel="preload" href="/styles.css" as="style"
+        onload="this.onload=null;this.rel='stylesheet'" />
+</head>
+```
+
+**4. Reduce server response time (TTFB)**:
+- Use a CDN (Cloudflare, Vercel Edge)
+- Enable server-side caching
+- Optimize database queries that block page rendering
+
+#### Fixing INP
+
+INP is about **main thread responsiveness**. If your JavaScript is hogging the main thread, user interactions feel sluggish.
+
+**1. Break up long tasks**:
+```javascript
+// ❌ One long task (200ms) — blocks the main thread
+function processItems(items) {
+  items.forEach(item => heavyComputation(item));
+}
+
+// ✅ Yield to the main thread between chunks
+async function processItems(items) {
+  for (let i = 0; i < items.length; i += 50) {
+    const chunk = items.slice(i, i + 50);
+    chunk.forEach(item => heavyComputation(item));
+    // Yield to the browser to handle user input
+    await scheduler.yield(); // or setTimeout(0)
+  }
+}
+```
+
+**2. Debounce expensive event handlers**:
+```javascript
+// ❌ Running expensive logic on every keystroke
+input.addEventListener('input', (e) => {
+  filterAndRenderResults(e.target.value); // 50ms per keystroke
+});
+
+// ✅ Debounce — wait for the user to stop typing
+let timeout;
+input.addEventListener('input', (e) => {
+  clearTimeout(timeout);
+  timeout = setTimeout(() => {
+    filterAndRenderResults(e.target.value);
+  }, 150);
+});
+```
+
+**3. Use `startTransition` in React**:
+```jsx
+import { startTransition } from 'react';
+
+function SearchPage() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+
+  function handleInput(e) {
+    setQuery(e.target.value); // Urgent — update input immediately
+    startTransition(() => {
+      setResults(search(e.target.value)); // Non-urgent — can be interrupted
+    });
+  }
+}
+```
+
+#### Fixing CLS
+
+CLS is about **visual stability**. The fix is usually simple: **always reserve space for dynamic content**.
+
+**1. Set explicit dimensions on images and videos**:
+```html
+<!-- ✅ Browser knows the size before loading -->
+<img src="photo.jpg" width="800" height="600" alt="Photo" />
+
+<!-- Or use CSS aspect-ratio -->
+<style>
+  .video-container {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+  }
+</style>
+```
+
+**2. Use `font-display: swap` carefully**:
+```css
+@font-face {
+  font-family: 'Inter';
+  src: url('/Inter.woff2') format('woff2');
+  font-display: swap; /* Shows fallback font immediately, swaps when loaded */
+}
+
+/* Size-adjust the fallback to match the custom font */
+@font-face {
+  font-family: 'Inter-fallback';
+  src: local('Arial');
+  size-adjust: 107%; /* Reduces shift when fonts swap */
+}
+```
+
+**3. Don't inject content above existing content**:
+```javascript
+// ❌ Inserting a banner that pushes everything down
+document.body.prepend(announcementBanner);
+
+// ✅ Reserve space with a placeholder or use transform
+// Animations using transform don't cause layout shifts
+banner.style.transform = 'translateY(-100%)'; // Hidden
+banner.style.transform = 'translateY(0)';     // Slides in, no shift
+```
+
+#### Code Splitting — Load Only What You Need
+
+```javascript
+// ❌ Importing everything upfront
+import { Chart } from 'chart.js'; // 200KB loaded on page load
+
+// ✅ Dynamic import — load when needed
+const ChartButton = () => {
+  async function showChart() {
+    const { Chart } = await import('chart.js');
+    new Chart(canvas, config);
+  }
+  return <button onClick={showChart}>Show Chart</button>;
+};
+```
+
+#### The Bottom Line
+
+1. **Measure with field data**, not just Lighthouse scores. Real users on slow phones matter more than your MacBook Pro.
+2. **LCP**: Optimize your hero image and reduce server response time.
+3. **INP**: Keep the main thread free — break long tasks, debounce handlers.
+4. **CLS**: Reserve space for everything before it loads.
+5. Performance is a feature. A site that loads in 1 second converts 2x better than one that loads in 5 seconds.
+
+Start with the biggest bottleneck, fix it, measure again. Repeat.
+
+See you in the next one!

@@ -1,0 +1,112 @@
+---
+title: "MVCC — How Your Database Handles Thousands of Concurrent Reads and Writes"
+publishedAt: "2026-01-20"
+summary: "Ever wondered how PostgreSQL lets multiple users read and write at the same time without stepping on each other? Let's explore MVCC, transaction isolation levels, and the hidden cost of bloat."
+---
+
+Hey! Hope you're doing well.
+
+Let me ask you something — when 500 users are reading from your database and 50 are writing to it simultaneously, how does the database not turn into absolute chaos? The answer is **MVCC** — Multi-Version Concurrency Control. Let's dig in.
+
+#### The Problem: Readers vs Writers
+
+In the old days (think MySQL with MyISAM), databases used simple locking. If someone was writing to a row, everyone else had to wait. Readers blocked writers. Writers blocked readers. Everything was slow.
+
+We needed a way to let readers and writers coexist without blocking each other. Enter MVCC.
+
+#### What MVCC Actually Does
+
+The core idea is beautifully simple: **instead of updating a row in place, create a new version of it**. Old transactions can still see the old version, new transactions see the new version. Nobody blocks anybody.
+
+Think of it like Google Docs version history — everyone can read the current version while someone edits, because edits create new versions.
+
+#### How PostgreSQL Implements MVCC
+
+PostgreSQL stores version information directly in each row (tuple) using two hidden columns:
+
+- **`xmin`** — The transaction ID that created this tuple
+- **`xmax`** — The transaction ID that deleted/updated this tuple (0 if still active)
+
+```sql
+-- You can actually see these hidden columns!
+SELECT xmin, xmax, * FROM users WHERE id = 1;
+```
+
+When you `UPDATE` a row, PostgreSQL doesn't modify the existing row. Instead, it:
+1. Marks the old tuple's `xmax` with the current transaction ID
+2. Inserts a brand new tuple with the updated values and a new `xmin`
+
+So an update is really a **delete + insert** under the hood. Wild, right?
+
+#### Transaction Visibility — Who Sees What?
+
+When a transaction reads a row, PostgreSQL checks: "Was this tuple created by a committed transaction that started before me? And was it NOT deleted by a committed transaction that started before me?" If both are true, the tuple is visible.
+
+This is how snapshot isolation works — each transaction gets a consistent snapshot of the database as it was when the transaction started.
+
+#### Transaction Isolation Levels
+
+SQL defines four isolation levels, and they directly affect what you see in MVCC:
+
+**Read Committed** (PostgreSQL default):
+```sql
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+-- Each statement sees the latest committed data
+-- Two identical SELECTs in the same transaction might return different results
+-- if someone committed between them (non-repeatable reads)
+```
+
+**Repeatable Read**:
+```sql
+SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
+-- Transaction sees a snapshot from the START of the transaction
+-- Same SELECT always returns the same result
+-- But watch out for serialization errors!
+BEGIN;
+SELECT balance FROM accounts WHERE id = 1; -- sees 1000
+-- Meanwhile, another transaction updates balance to 500 and commits
+SELECT balance FROM accounts WHERE id = 1; -- still sees 1000!
+COMMIT;
+```
+
+**Serializable**:
+```sql
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+-- Strictest level — transactions behave as if executed one at a time
+-- PostgreSQL uses SSI (Serializable Snapshot Isolation)
+-- You'll get serialization failures that you need to retry
+```
+
+#### The Hidden Cost: Bloat and VACUUM
+
+Here's the catch — since updates create new tuples and old ones just get marked as dead, your table grows and grows. These dead tuples are called **bloat**.
+
+That's where `VACUUM` comes in. It reclaims space from dead tuples that no running transaction could possibly need anymore.
+
+```sql
+-- Check for bloat
+SELECT relname, n_dead_tup, n_live_tup,
+       round(n_dead_tup::numeric / NULLIF(n_live_tup, 0) * 100, 2) as dead_pct
+FROM pg_stat_user_tables
+ORDER BY n_dead_tup DESC;
+```
+
+PostgreSQL runs **autovacuum** in the background, but on high-write tables, it might not keep up. Long-running transactions are the worst — they prevent vacuum from cleaning up old tuples because those tuples are still "visible" to the old transaction's snapshot.
+
+#### MySQL's InnoDB — A Different Approach
+
+MySQL's InnoDB also uses MVCC, but differently. Instead of keeping old row versions in the main table, InnoDB stores them in an **undo log**. The main table always has the latest version, and if an old transaction needs a previous version, InnoDB reconstructs it from the undo log.
+
+This means InnoDB tables don't bloat the same way PostgreSQL does, but the undo log can grow large, and reconstructing old versions has its own cost.
+
+#### Key Takeaways
+
+1. MVCC lets readers and writers work simultaneously without blocking each other.
+2. PostgreSQL creates new tuple versions on every update — that's why VACUUM exists.
+3. Your isolation level determines which version of the data you see.
+4. Long-running transactions are the enemy of MVCC — they hold back cleanup.
+5. Monitor your dead tuple count and autovacuum performance.
+
+MVCC is one of those things that just works until it doesn't. Understand it, and you'll debug database issues 10x faster.
+
+Catch you later!

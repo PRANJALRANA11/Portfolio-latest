@@ -1,0 +1,176 @@
+---
+title: "React Server Components — What Changes and Why It Matters"
+publishedAt: "2026-03-25"
+summary: "React Server Components fundamentally change how we think about React. Let's break down the mental model, understand the server-client boundary, and see how RSC reduces your JavaScript bundle to almost nothing."
+---
+
+Hey! Let's talk about one of the biggest shifts in React's history — **React Server Components (RSC)**.
+
+If you've been confused about what RSC actually changes, you're not alone. It took me a while to get the mental model right, and I think the official docs don't do a great job explaining the *why*. So let's fix that.
+
+#### The Problem RSC Solves
+
+Here's the traditional React flow:
+1. Browser requests a page
+2. Server sends a mostly-empty HTML shell + a fat JavaScript bundle
+3. Browser downloads, parses, and executes the JS
+4. React hydrates — makes the page interactive
+5. Components fetch data (useEffect → API call → re-render)
+
+The problems are stacking up:
+- **Huge JS bundles** — Every component, every library, every dependency ships to the browser
+- **Data fetching waterfalls** — Parent renders → child renders → child fetches data → child re-renders. Each step waits for the previous one.
+- **Heavy client** — Why is the browser parsing a markdown library just to render a blog post?
+
+#### The Mental Model
+
+RSC introduces a clear boundary: **some components run only on the server, some run on the client**.
+
+- **Server Components** (default in Next.js App Router): Run on the server. Have access to databases, file systems, environment variables. Their code **never ships to the browser**. They can't use state, effects, or browser APIs.
+
+- **Client Components** (marked with `'use client'`): Run on the client (and also pre-render on the server). Can use hooks, state, effects, event handlers — the React you know.
+
+```jsx
+// This is a Server Component (default)
+// It runs ONLY on the server
+async function BlogPost({ slug }) {
+  // Direct database access — no API needed!
+  const post = await db.posts.findOne({ slug });
+  
+  // This markdown library stays on the server
+  // Never shipped to the browser
+  const html = marked(post.content);
+  
+  return (
+    <article>
+      <h1>{post.title}</h1>
+      <div dangerouslySetInnerHTML={{ __html: html }} />
+      <LikeButton postId={post.id} /> {/* Client Component */}
+    </article>
+  );
+}
+```
+
+```jsx
+'use client';
+
+// This is a Client Component
+// It ships to the browser because it needs interactivity
+function LikeButton({ postId }) {
+  const [liked, setLiked] = useState(false);
+  
+  return (
+    <button onClick={() => setLiked(!liked)}>
+      {liked ? '❤️' : '🤍'} Like
+    </button>
+  );
+}
+```
+
+#### The 'use client' Boundary
+
+Think of `'use client'` as a **boundary declaration**, not a description. It says: "Everything from this point down in the import tree is client-side."
+
+A Server Component can render a Client Component, but a Client Component cannot import a Server Component. However, a Client Component CAN *render* a Server Component if it's passed as children:
+
+```jsx
+// ✅ This works — ServerComponent passed as children
+<ClientWrapper>
+  <ServerComponent />
+</ClientWrapper>
+
+// ❌ This doesn't — importing server component in client file
+'use client';
+import ServerComponent from './ServerComponent'; // Error!
+```
+
+#### Streaming with Suspense
+
+RSC integrates beautifully with React's Suspense for streaming:
+
+```jsx
+async function Page() {
+  return (
+    <div>
+      <Header /> {/* Renders immediately */}
+      <Suspense fallback={<Spinner />}>
+        <SlowDataComponent /> {/* Streams in when ready */}
+      </Suspense>
+      <Footer /> {/* Renders immediately */}
+    </div>
+  );
+}
+```
+
+The server sends the shell immediately, then **streams** in the slow parts as they resolve. Users see content progressively instead of staring at a blank screen.
+
+#### Bundle Size Impact
+
+This is where RSC really shines. Consider a blog page that uses:
+- `marked` (32KB) for markdown rendering
+- `highlight.js` (180KB) for syntax highlighting
+- `date-fns` (30KB) for date formatting
+
+With traditional React, all 242KB ships to the browser. With RSC, **zero** of that ships to the browser because it all runs in Server Components. The only JS that ships is the tiny `LikeButton` and its `useState`.
+
+Real-world impact? Teams report **30-70% reduction in client-side JavaScript**.
+
+#### Data Fetching — No More useEffect Waterfalls
+
+Traditional React:
+```jsx
+// ❌ The old way — waterfall + loading states
+function UserProfile({ userId }) {
+  const [user, setUser] = useState(null);
+  const [posts, setPosts] = useState(null);
+  
+  useEffect(() => {
+    fetch(`/api/users/${userId}`)
+      .then(r => r.json())
+      .then(setUser);
+  }, [userId]);
+  
+  useEffect(() => {
+    if (user) {
+      fetch(`/api/posts?author=${user.id}`)
+        .then(r => r.json())
+        .then(setPosts);
+    }
+  }, [user]); // Waits for user to load first!
+}
+```
+
+With RSC:
+```jsx
+// ✅ The RSC way — parallel, no waterfalls
+async function UserProfile({ userId }) {
+  const [user, posts] = await Promise.all([
+    db.users.findOne(userId),
+    db.posts.find({ authorId: userId })
+  ]);
+  
+  return (
+    <div>
+      <h1>{user.name}</h1>
+      <PostList posts={posts} />
+    </div>
+  );
+}
+```
+
+No loading states, no waterfalls, no client-side data fetching. The data is already there when the HTML arrives.
+
+#### Common Gotchas
+
+1. **Don't add 'use client' everywhere** — Start with Server Components and only add 'use client' when you need interactivity.
+2. **Serialization boundary** — Props passed from Server to Client Components must be serializable (no functions, no classes, no Dates).
+3. **Server Components can be async** — Client Components cannot. This is a key difference.
+4. **Context doesn't cross the boundary** — React Context from a Client Component doesn't reach Server Components.
+
+#### Wrapping Up
+
+RSC isn't a minor feature — it's a fundamental rethinking of how React applications work. Server-first by default, client-side only when needed. The result is faster apps, smaller bundles, and simpler data fetching.
+
+It takes some getting used to, but once the mental model clicks, you'll wonder why we ever shipped markdown parsers to the browser.
+
+Until next time!

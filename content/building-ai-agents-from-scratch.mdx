@@ -1,0 +1,211 @@
+---
+title: "Building AI Agents From Scratch — Beyond Simple Chat Completions"
+publishedAt: "2026-04-22"
+summary: "AI agents are more than prompt chaining. Let's build an agent from scratch with tool use, memory, planning, and self-correction — and understand the architecture patterns that make agents actually useful."
+---
+
+Hey! Let's talk about AI agents — not the hype-y marketing version, but the actual engineering behind making an LLM do useful work autonomously.
+
+A chatbot takes your input, generates a response, done. An agent takes a goal, breaks it down, uses tools, remembers context, corrects its mistakes, and keeps going until the job is done. That's a fundamentally different architecture.
+
+Let's build one from scratch.
+
+#### What Makes an Agent Different From a Chatbot?
+
+Three things:
+
+1. **Autonomy** — It decides what to do next, not the user
+2. **Tool use** — It can take actions in the real world (search the web, run code, call APIs)
+3. **Planning** — It breaks complex goals into steps and executes them
+
+A chatbot is `input → output`. An agent is `goal → plan → act → observe → reflect → repeat`.
+
+#### The ReAct Pattern — Reason + Act
+
+The most fundamental agent architecture is **ReAct** (Reasoning + Acting). The loop looks like this:
+
+```
+1. THINK: "I need to find the current weather in Tokyo"
+2. ACT: call_tool(weather_api, location="Tokyo")
+3. OBSERVE: "Temperature: 22°C, Partly Cloudy"
+4. THINK: "I have the weather. The user also asked about tomorrow's forecast."
+5. ACT: call_tool(weather_api, location="Tokyo", date="tomorrow")
+6. OBSERVE: "Temperature: 25°C, Sunny"
+7. THINK: "I have all the info. Time to respond."
+8. RESPOND: "Currently in Tokyo it's 22°C and partly cloudy..."
+```
+
+The agent alternates between reasoning (thinking about what to do) and acting (calling tools). Each observation feeds back into the next reasoning step.
+
+#### Implementing Tool Calling
+
+Tools are functions the agent can call. You define them with a schema, and the LLM decides when and how to call them:
+
+```python
+tools = [
+    {
+        "name": "search_web",
+        "description": "Search the web for current information",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search query"}
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "run_python",
+        "description": "Execute Python code and return the output",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "code": {"type": "string", "description": "Python code to execute"}
+            },
+            "required": ["code"]
+        }
+    }
+]
+
+def agent_loop(goal, max_steps=10):
+    messages = [{"role": "user", "content": goal}]
+    
+    for step in range(max_steps):
+        response = llm.chat(messages, tools=tools)
+        
+        if response.tool_calls:
+            for tool_call in response.tool_calls:
+                # Execute the tool
+                result = execute_tool(
+                    tool_call.name,
+                    tool_call.arguments
+                )
+                # Feed result back to the LLM
+                messages.append({
+                    "role": "tool",
+                    "content": str(result),
+                    "tool_call_id": tool_call.id
+                })
+        else:
+            # No tool calls — agent is done
+            return response.content
+    
+    return "Max steps reached"
+```
+
+#### Memory Patterns
+
+Without memory, every agent invocation starts from scratch. There are three main patterns:
+
+**Conversation Buffer** — Just keep the full chat history. Simple but context windows are finite.
+
+**Summary Memory** — Periodically summarize the conversation and replace old messages with the summary:
+
+```python
+def summarize_if_needed(messages, max_tokens=4000):
+    if count_tokens(messages) > max_tokens:
+        summary = llm.chat([
+            {"role": "system", "content": "Summarize this conversation concisely"},
+            *messages
+        ])
+        return [{"role": "system", "content": f"Previous context: {summary}"}]
+    return messages
+```
+
+**Vector Store Retrieval** — Embed past interactions and retrieve relevant ones based on the current query. This is how agents can "remember" things from weeks ago without keeping everything in context:
+
+```python
+def retrieve_relevant_memory(query, top_k=5):
+    query_embedding = embed(query)
+    results = vector_store.search(query_embedding, top_k=top_k)
+    return [r.text for r in results]
+```
+
+#### Planning Strategies
+
+**Chain-of-Thought (CoT)**: Ask the LLM to think step by step before acting. Simple and effective.
+
+```
+System: Before taking action, break down your approach into numbered steps.
+Then execute each step one at a time.
+```
+
+**Tree-of-Thought (ToT)**: Generate multiple possible approaches, evaluate each, and pick the best one. More expensive but better for complex problems:
+
+```python
+def tree_of_thought(problem):
+    # Generate 3 possible approaches
+    approaches = [llm.generate_approach(problem) for _ in range(3)]
+    
+    # Evaluate each
+    evaluations = [llm.evaluate(a, problem) for a in approaches]
+    
+    # Pick the best
+    best = max(zip(approaches, evaluations), key=lambda x: x[1].score)
+    return best[0]
+```
+
+#### Self-Correction and Reflection
+
+Good agents check their own work. After taking an action, the agent evaluates whether the result makes sense:
+
+```python
+def agent_with_reflection(goal):
+    result = agent_loop(goal)
+    
+    # Self-critique
+    critique = llm.chat([
+        {"role": "system", "content": "Review this result. Is it correct and complete? List any issues."},
+        {"role": "user", "content": f"Goal: {goal}\nResult: {result}"}
+    ])
+    
+    if "issues found" in critique.lower():
+        # Try again with the critique as feedback
+        return agent_loop(
+            f"{goal}\n\nPrevious attempt had these issues: {critique}\nPlease fix them."
+        )
+    
+    return result
+```
+
+#### Failure Modes and Guardrails
+
+Agents fail in predictable ways:
+
+1. **Infinite loops** — The agent keeps calling the same tool with slightly different inputs. Fix: Set a max step limit and track repeated actions.
+2. **Hallucinated tool calls** — The agent tries to call tools that don't exist. Fix: Validate tool names before execution.
+3. **Scope creep** — The agent goes off on tangents. Fix: Include goal-checking in the system prompt.
+4. **Token explosion** — Tool results are huge and blow the context window. Fix: Truncate or summarize tool outputs.
+5. **Unsafe actions** — The agent tries to delete files or send emails without confirmation. Fix: Require human approval for destructive actions.
+
+```python
+DANGEROUS_TOOLS = {"delete_file", "send_email", "execute_sql"}
+
+def execute_tool_safely(name, args):
+    if name in DANGEROUS_TOOLS:
+        approval = input(f"Agent wants to {name}({args}). Approve? [y/n] ")
+        if approval != 'y':
+            return "Action rejected by user"
+    return execute_tool(name, args)
+```
+
+#### Frameworks Worth Knowing
+
+- **LangChain/LangGraph**: Most popular. LangGraph is better for complex agent workflows with state machines.
+- **CrewAI**: Multi-agent framework where you define agents with roles and they collaborate.
+- **AutoGen**: Microsoft's framework for multi-agent conversations.
+- **Vercel AI SDK**: Great for building agent UIs with streaming.
+
+But honestly? For most use cases, a simple ReAct loop with tool calling (like the code above) is all you need. Don't over-abstract.
+
+#### The Bottom Line
+
+1. Agents = LLM + tools + memory + planning loop
+2. Start with the ReAct pattern — it handles 80% of use cases
+3. Add memory when conversations span multiple sessions
+4. Self-correction dramatically improves reliability
+5. Always add guardrails — agents WILL try weird things
+
+The best agent is the simplest one that gets the job done. Don't build a multi-agent orchestration system when a single ReAct loop with three tools would suffice.
+
+Until next time!

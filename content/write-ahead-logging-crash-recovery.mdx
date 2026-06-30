@@ -1,0 +1,118 @@
+---
+title: "Write-Ahead Logging — How Databases Survive Crashes Without Losing Your Data"
+publishedAt: "2026-02-28"
+summary: "Your database just crashed mid-transaction. How does it recover without losing committed data or applying half-finished writes? The answer is WAL — let's break it down."
+---
+
+Hey! Let's talk about something that silently saves your data every single day — **Write-Ahead Logging (WAL)**.
+
+Imagine this: your application is in the middle of transferring $1000 between two bank accounts. It debited Account A, but before it could credit Account B — the server crashes. Power outage. Kernel panic. Whatever. Now what?
+
+This is the **durability problem**, the "D" in ACID. And WAL is how databases solve it.
+
+#### The Core Idea
+
+The rule is dead simple: **before you modify any data on disk, first write a log entry describing what you're about to do**. That's it. That's the whole insight.
+
+Why? Because if the database crashes mid-write, it can replay the log to figure out what happened and either finish the job or roll it back.
+
+Writing to a log is way faster than writing to the actual data files because:
+1. Log writes are **sequential** (append-only) — no random I/O
+2. You're writing a small log record, not shuffling entire data pages
+
+#### The Write Path
+
+Here's what happens when you `INSERT` or `UPDATE` something in PostgreSQL:
+
+1. **Modify the page in memory** (shared buffers) — this is the "dirty page"
+2. **Write a WAL record** to the WAL buffer describing the change
+3. **Flush the WAL buffer to disk** (the WAL file) — this is the critical step
+4. Tell the client "transaction committed"
+5. **Later**, the background writer flushes the dirty page to the actual data file
+
+Notice step 3 happens before step 5. The WAL hits disk before the data. That's the "write-ahead" part.
+
+#### Crash Recovery: Redo and Undo
+
+When PostgreSQL restarts after a crash, it does this:
+
+1. Find the last **checkpoint** — a known good state where all data files were consistent
+2. Read the WAL from that checkpoint forward
+3. **Redo** all changes that were committed but might not have made it to the data files
+4. **Undo** any changes from transactions that weren't committed
+
+```
+Checkpoint      WAL Records
+    |               |
+    v               v
+[consistent] -> [change A] -> [change B] -> [COMMIT] -> [change C] -> [CRASH]
+                                                          ^
+                                                    This gets undone
+```
+
+After recovery, the database is in a consistent state as if the crash never happened. Committed transactions are preserved. Uncommitted ones are rolled back.
+
+#### LSN — Log Sequence Numbers
+
+Every WAL record gets a unique **LSN (Log Sequence Number)**. It's basically a position in the WAL stream. PostgreSQL uses LSNs to track:
+
+- Which WAL records have been flushed to disk
+- Which records have been applied to data pages
+- Where to start recovery after a crash
+
+```sql
+-- Check current WAL position
+SELECT pg_current_wal_lsn();
+
+-- Check how far behind a replica is
+SELECT pg_last_wal_replay_lsn();
+```
+
+#### The fsync Story — And the Infamous Bug
+
+When PostgreSQL says "WAL is on disk," it means it called `fsync()` to force the OS to actually write the data from its page cache to the physical disk. Without fsync, the OS might say "yeah sure, it's written" while the data is still sitting in a RAM buffer.
+
+In 2018, PostgreSQL discovered a terrifying bug: **if fsync failed and you retried it, Linux wouldn't actually re-attempt the write — it would just silently report success**. This meant data could be silently lost after a failed disk write.
+
+The fix? PostgreSQL now panics and crashes immediately on fsync failure, forcing a full recovery on restart. Better safe than silently corrupt.
+
+#### WAL in PostgreSQL vs SQLite
+
+**PostgreSQL WAL**: Separate WAL files in `pg_wal/` directory. Supports streaming replication (replicas consume the WAL stream). Configurable size and retention.
+
+**SQLite WAL mode**: WAL file sits next to the database file. Readers read from the main database + WAL. A checkpoint merges WAL changes back into the main database file. WAL mode allows concurrent reads and writes, unlike the default journal mode.
+
+```sql
+-- Enable WAL mode in SQLite
+PRAGMA journal_mode=WAL;
+```
+
+#### Practical WAL Tuning Tips
+
+1. **`wal_level`**: Set to `replica` if you need replication, `logical` for logical replication. `minimal` is fastest but no replication.
+
+2. **`max_wal_size`**: Controls when checkpoints trigger. Larger = fewer checkpoints = better write performance, but longer crash recovery.
+
+3. **`checkpoint_completion_target`**: Spread checkpoint I/O over time (default 0.9 means use 90% of the time between checkpoints). Don't set this to 0 unless you love I/O spikes.
+
+4. **`synchronous_commit`**: Set to `off` for a massive speed boost — but you risk losing the last few milliseconds of transactions on crash. Great for things like logging where losing a few records is acceptable.
+
+```sql
+-- Check WAL statistics
+SELECT * FROM pg_stat_wal;
+
+-- Check checkpoint info
+SELECT * FROM pg_stat_bgwriter;
+```
+
+#### Wrapping Up
+
+1. WAL ensures durability by logging changes before applying them.
+2. Sequential writes to the log are way faster than random writes to data files.
+3. Crash recovery replays the WAL from the last checkpoint.
+4. fsync is critical — without it, your "durable" writes might be in a RAM buffer.
+5. Tune WAL settings based on your trade-off between performance and recovery time.
+
+WAL is one of those foundational concepts that makes everything else in databases possible — replication, point-in-time recovery, and crash safety all rely on it.
+
+Until next time!

@@ -1,0 +1,85 @@
+---
+title: "Understanding Database Sharding — When and How to Split Your Data"
+publishedAt: "2025-12-15"
+summary: "A deep dive into database sharding strategies — horizontal vs vertical partitioning, consistent hashing, and when you actually need sharding vs when you're over-engineering."
+---
+
+Hey! Let's talk about one of those topics that comes up in every system design interview but is way more nuanced in practice — **database sharding**.
+
+Everyone loves to throw "just shard the database" into their architecture diagrams, but the reality is, sharding is painful and you should avoid it until you genuinely need it. Let's break it down.
+
+#### What Even Is Sharding?
+
+Sharding is splitting your data across multiple database instances (called shards), so no single database has to handle everything. Think of it like splitting a phone book into A-M and N-Z — each volume is smaller and faster to search.
+
+But here's the thing — there are different ways to split data, and each comes with its own headaches.
+
+#### Horizontal vs Vertical Partitioning
+
+**Vertical partitioning** means splitting a table by columns. Maybe you keep `user_id`, `name`, `email` in one database and `user_id`, `profile_photo`, `bio` in another. This is useful when some columns are accessed way more frequently than others.
+
+**Horizontal partitioning** (what most people mean by "sharding") means splitting rows across databases. User IDs 1-1M go to Shard 1, 1M-2M go to Shard 2, and so on.
+
+```sql
+-- PostgreSQL native partitioning (horizontal, range-based)
+CREATE TABLE orders (
+    id BIGSERIAL,
+    user_id BIGINT,
+    created_at TIMESTAMP,
+    total DECIMAL(10,2)
+) PARTITION BY RANGE (created_at);
+
+CREATE TABLE orders_2025_q1 PARTITION OF orders
+    FOR VALUES FROM ('2025-01-01') TO ('2025-04-01');
+
+CREATE TABLE orders_2025_q2 PARTITION OF orders
+    FOR VALUES FROM ('2025-04-01') TO ('2025-07-01');
+```
+
+#### Hash-Based vs Range-Based Sharding
+
+**Range-based**: Split by a range of values (e.g., user IDs 1-1M on shard 1). Simple to understand but creates hotspots — what if all your active users signed up recently and are all on the same shard?
+
+**Hash-based**: Apply a hash function to the shard key (`shard = hash(user_id) % num_shards`). Better distribution, but adding a new shard means almost every row needs to move. That's where consistent hashing comes in.
+
+#### Consistent Hashing — The Smart Way
+
+With naive hash-based sharding, adding a 4th shard to 3 existing ones means re-hashing everything. Consistent hashing minimizes this — when you add a new shard, only about `1/n` of the keys need to move.
+
+The trick is arranging shards on a virtual ring. Each key hashes to a point on the ring and goes to the next shard clockwise. Add a new shard, and it only steals keys from its neighbor.
+
+This is how DynamoDB, Cassandra, and most modern distributed databases handle it.
+
+#### The Pain Points Nobody Tells You About
+
+1. **Cross-shard joins are a nightmare**. If user data is on Shard 1 and their orders are on Shard 3, you can't just `JOIN` them. You need application-level joins or denormalization.
+
+2. **Rebalancing is terrifying**. Even with consistent hashing, moving data between shards while the system is live is like changing tires on a moving car.
+
+3. **Distributed transactions are expensive**. Two-phase commit across shards kills your latency. Most teams just accept eventual consistency.
+
+4. **Auto-increment IDs break**. You need distributed ID generation — UUIDs, Snowflake IDs, or a dedicated ID service.
+
+#### When NOT to Shard
+
+Before you shard, try everything else first:
+
+- **Read replicas** — Is your bottleneck reads? Add replicas. Way simpler.
+- **Caching** — Redis/Memcached can handle millions of reads per second.
+- **Query optimization** — Add indexes, fix N+1 queries, use `EXPLAIN ANALYZE`.
+- **Vertical scaling** — A bigger machine is often cheaper than the engineering cost of sharding.
+- **Connection pooling** — PgBouncer can handle thousands of connections without breaking a sweat.
+
+Sharding should be your last resort, not your first instinct. Instagram ran on a single PostgreSQL instance (with partitioning) for a surprisingly long time. Don't over-engineer.
+
+#### The Bottom Line
+
+1. Vertical partitioning before horizontal.
+2. Read replicas and caching before sharding.
+3. If you must shard — use consistent hashing and pick your shard key carefully.
+4. Accept that cross-shard queries will be painful.
+5. Consider managed solutions (CockroachDB, Vitess, Citus) before rolling your own.
+
+Alright, that's the gist. Sharding is powerful but painful — make sure you actually need it before you go down that road.
+
+See you in the next one!

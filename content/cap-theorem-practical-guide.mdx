@@ -1,0 +1,80 @@
+---
+title: "The CAP Theorem — What It Actually Means (And What People Get Wrong)"
+publishedAt: "2026-03-10"
+summary: "CAP theorem is one of the most misunderstood concepts in distributed systems. Let's cut through the confusion and understand what consistency, availability, and partition tolerance really mean in practice."
+---
+
+Hey! Let's talk about the CAP theorem — probably the most misquoted concept in all of distributed systems.
+
+You've heard it a thousand times: "You can only pick two out of three: Consistency, Availability, Partition Tolerance." But most people get the implications completely wrong. Let's fix that.
+
+#### What CAP Actually Says
+
+The CAP theorem (proven by Gilbert & Lynch in 2002, conjecture by Eric Brewer in 2000) states:
+
+In a distributed system, when a **network partition** occurs, you must choose between **Consistency** and **Availability**. You can't have both.
+
+The key phrase everyone misses: **when a network partition occurs**. During normal operation (no partitions), you CAN have both consistency and availability. The trade-off only kicks in when things go wrong.
+
+Let's define the terms properly:
+
+- **Consistency** (linearizability): Every read receives the most recent write or an error. All nodes see the same data at the same time.
+- **Availability**: Every request receives a response (not an error), without guarantee that it's the most recent write.
+- **Partition Tolerance**: The system continues to operate despite network partitions (messages lost or delayed between nodes).
+
+#### Why "CA" Systems Don't Exist in Distributed Systems
+
+Here's what trips people up: you can't "choose" to drop partition tolerance. Network partitions **will** happen. Cables get cut, switches fail, cloud regions go down. It's not a choice — it's physics.
+
+So in any distributed system, you're really choosing between CP and AP **during a partition**:
+
+- **CP**: During a partition, refuse to serve requests that might be stale. Sacrifice availability for correctness.
+- **AP**: During a partition, keep serving requests even if they might be stale. Sacrifice consistency for uptime.
+
+A single-node database like a standalone PostgreSQL instance? That's technically "CA" — but it's not a distributed system. The moment you add replication, you're choosing between CP and AP.
+
+#### Real-World Examples
+
+**CP Systems — Correctness First:**
+
+- **ZooKeeper**: Used for distributed coordination. During a partition, the minority partition becomes unavailable. You'd rather have no answer than a wrong answer for things like leader election.
+- **etcd**: Kubernetes uses etcd for cluster state. Uses Raft consensus — requires a majority of nodes to be reachable.
+- **Google Spanner**: Globally consistent, uses TrueTime (atomic clocks!) to achieve external consistency. Sacrifices some availability during partitions.
+
+**AP Systems — Uptime First:**
+
+- **Cassandra**: Every node can accept writes. During a partition, both sides keep accepting writes and reconcile later. Uses tunable consistency (you can make individual queries more or less consistent).
+- **DynamoDB**: Amazon designed it with the philosophy "customers should always be able to add items to their cart." Shopping cart availability > perfect consistency.
+- **DNS**: The entire DNS system is eventually consistent. You update a record, and it takes time to propagate globally.
+
+#### Beyond CAP: The PACELC Theorem
+
+CAP only talks about partition scenarios. But what about normal operation? Enter **PACELC**:
+
+> If there's a **P**artition, choose between **A**vailability and **C**onsistency. **E**lse (normal operation), choose between **L**atency and **C**onsistency.
+
+This is way more useful because it captures the everyday trade-off:
+
+- **DynamoDB**: PA/EL — During partition: available. Normal operation: low latency (eventually consistent reads are faster).
+- **Google Spanner**: PC/EC — During partition: consistent. Normal operation: consistent (but pays the latency cost of global consensus).
+- **Cassandra**: PA/EL — Available during partitions, optimized for latency normally. But with `QUORUM` reads/writes, it becomes PA/EC.
+
+#### Linearizability vs Eventual Consistency
+
+**Linearizability** (strong consistency): Operations appear to happen instantaneously, in some total order. If write W completes before read R starts, R must see W. This is what CAP means by "consistency."
+
+**Eventual consistency**: If you stop writing, eventually all replicas will converge to the same value. But "eventually" could be milliseconds or minutes. And during that window, different clients see different data.
+
+Most real systems live somewhere in between — **causal consistency**, **read-your-writes**, **monotonic reads** — these are all points on the consistency spectrum that give you useful guarantees without the full cost of linearizability.
+
+#### The Practical Takeaway
+
+1. CAP is about **partitions**, not normal operation. Stop saying "we chose AP so we can't have consistency."
+2. Network partitions are inevitable — you must plan for them.
+3. Most systems don't need linearizability. Causal consistency or read-your-writes is often good enough.
+4. Use PACELC to reason about your system — it captures latency trade-offs during normal operation.
+5. Many databases offer **tunable consistency** — you don't have to commit to one end of the spectrum for all operations.
+
+The best engineers don't pick a side — they understand the trade-offs and choose the right consistency level for each use case.
+
+Until next time!
