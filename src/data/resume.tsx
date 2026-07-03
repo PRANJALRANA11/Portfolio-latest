@@ -145,8 +145,8 @@ export const DATA = {
           icon: <Icons.github className="size-3" />,
         },
       ],
-      image: "",
-      video: "https://3rlswxutjhdzbxmm.public.blob.vercel-storage.com/demo.mp4",
+      image: "/supogen-img.png",
+      video: "",
     },
     {
       title: "Property Finder",
@@ -162,10 +162,14 @@ export const DATA = {
           href: "https://kendal-assignment.vercel.app",
           icon: <Icons.globe className="size-3" />,
         },
+        {
+          type: "Source",
+          href: "https://github.com/PRANJALRANA11/kendal-assignment",
+          icon: <Icons.github className="size-3" />,
+        },
       ],
-      image: "",
-      video:
-        "https://tga5khbbk9a1lpph.public.blob.vercel-storage.com/Screen%20Recording%202025-11-23%20at%205.00.23%E2%80%AFPM.mp4",
+      image: "/kendal-img.png",
+      video: "",
     },
     {
       title: "Voicy",
@@ -187,34 +191,10 @@ export const DATA = {
           icon: <Icons.github className="size-3" />,
         },
       ],
-      image: "",
-      video:
-        "https://tga5khbbk9a1lpph.public.blob.vercel-storage.com/Screen%20Recording%202025-11-23%20at%204.54.56%E2%80%AFPM.mp4",
+      image: "/voice-img.png",
+      video: "",
     },
-    {
-      title: "Real-Time Video Chat App with Live Streaming",
-      href: "https://drive.google.com/file/d/16Lh_EO_piVjed7LbfEv75Z3An8auwPyd/view?usp=sharing",
-      dates: "April 2023 - March 2024",
-      active: true,
-      description:
-        "Here we can join the room of a video chat and simultaneusly live stream that call as a youtube playback",
-      technologies: ["Reactjs", "Hono", "FFmpeg", "MediaSoup"],
-      links: [
-        {
-          type: "Demo",
-          href: "https://drive.google.com/file/d/16Lh_EO_piVjed7LbfEv75Z3An8auwPyd/view?usp=sharing",
-          icon: <Icons.youtube className="size-3" />,
-        },
-        {
-          type: "Source",
-          href: "https://github.com/PRANJALRANA11/Realtime-video-chat-app-with-live-stream",
-          icon: <Icons.github className="size-3" />,
-        },
-      ],
-      image: "",
-      video:
-        "https://tga5khbbk9a1lpph.public.blob.vercel-storage.com/Screen%20Recording%202025-11-23%20at%205.27.03%E2%80%AFPM.mp4",
-    },
+
     {
       title: "Cally",
       href: "https://callyyai.vercel.app",
@@ -331,7 +311,29 @@ export const DATA = {
         "https://pranjal-rana.vercel.app/_next/image?url=%2Fimages%2Fdatadm.png&w=2048&q=75",
       video: "",
     },
-
+    {
+      title: "Real-Time Video Chat App with Live Streaming",
+      href: "https://drive.google.com/file/d/16Lh_EO_piVjed7LbfEv75Z3An8auwPyd/view?usp=sharing",
+      dates: "April 2023 - March 2024",
+      active: true,
+      description:
+        "Here we can join the room of a video chat and simultaneusly live stream that call as a youtube playback",
+      technologies: ["Reactjs", "Hono", "FFmpeg", "MediaSoup"],
+      links: [
+        {
+          type: "Demo",
+          href: "https://drive.google.com/file/d/16Lh_EO_piVjed7LbfEv75Z3An8auwPyd/view?usp=sharing",
+          icon: <Icons.youtube className="size-3" />,
+        },
+        {
+          type: "Source",
+          href: "https://github.com/PRANJALRANA11/Realtime-video-chat-app-with-live-stream",
+          icon: <Icons.github className="size-3" />,
+        },
+      ],
+      image: "/realtime-img.png",
+      video: "",
+    },
     {
       title: "VISION AI",
       href: "https://github.com/VarunChopra11/VisionAssistant",
@@ -450,4 +452,72 @@ export const DATA = {
       links: [],
     },
   ],
+  customComponents: [
+    {
+      name: "animated-button",
+      title: "Animated Button",
+      description: "A button with framer-motion micro-interactions.",
+      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c animated-button",
+    },
+    {
+      name: "glass-card",
+      title: "Glass Card",
+      description: "A sleek card component with glassmorphism effects.",
+      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c glass-card",
+    },
+    {
+      name: "gradient-text",
+      title: "Gradient Text",
+      description:
+        "A highly customizable text component with smooth animated gradients.",
+      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c gradient-text",
+    },
+    {
+      name: "status-badge",
+      title: "Status Badge",
+      description: "An enhanced badge component with pulsing dot indicators.",
+      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c status-badge",
+    },
+    {
+      name: "pricing-card",
+      title: "Pricing Card",
+      description: "A modern pricing tier card ready for SaaS landing pages.",
+      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c pricing-card",
+    },
+  ],
+  openSource: [
+    {
+      title: "Superflex",
+      description: "Contributed to core architecture and VS Code extension.",
+      href: "https://github.com/aquila-lab/superflex-vscode",
+      icon: "github",
+    },
+    {
+      title: "Continue",
+      description:
+        "Contributed features to the leading open-source AI code assistant.",
+      href: "https://github.com/continuedev/continue",
+      icon: "github",
+    },
+  ],
+  testimonials: [
+    {
+      name: "John Doe",
+      title: "CTO @ Mentra",
+      text: "Pranjal is an exceptional engineer. He took ownership of our WebRTC implementation and delivered it flawlessly ahead of schedule.",
+      avatar: "https://i.pravatar.cc/150?u=1",
+    },
+    {
+      name: "Jane Smith",
+      title: "Software Engineer @ CodeMate",
+      text: "Working with Pranjal was a great experience. His ability to dissect complex problems and optimize performance by 30% was truly impressive.",
+      avatar: "https://i.pravatar.cc/150?u=2",
+    },
+  ],
+  techStack: {
+    frontend: ["React", "Next.js", "TypeScript", "Tailwind CSS"],
+    backend: ["Node.js", "Python", "Go", "FastAPI"],
+    infrastructure: ["AWS", "Docker", "PostgreSQL"],
+    ai: ["OpenAI", "Hugging Face", "Langchain"],
+  },
 } as const;
