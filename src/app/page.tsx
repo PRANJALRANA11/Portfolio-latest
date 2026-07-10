@@ -11,11 +11,7 @@ import Markdown from "react-markdown";
 import { getBlogPosts } from "@/data/blog";
 import { formatDate } from "@/lib/utils";
 import { Icons } from "@/components/icons";
-import { AnimatedButton } from "@/components/registry/animated-button";
-import { GlassCard } from "@/components/registry/glass-card";
-import { GradientText } from "@/components/registry/gradient-text";
-import { StatusBadge } from "@/components/registry/status-badge";
-import { PricingCard } from "@/components/registry/pricing-card";
+
 
 const BLUR_FADE_DELAY = 0.04;
 
@@ -262,128 +258,7 @@ export default async function Page() {
         </div>
       </section>
 
-      {DATA.customComponents && (
-        <section id="custom-components">
-          <div className="space-y-12 w-full py-12">
-            <BlurFade delay={BLUR_FADE_DELAY * 10.5}>
-              <div className="flex flex-col items-center justify-center space-y-4 text-center">
-                <div className="space-y-2">
-                  <div className="inline-block rounded-lg bg-foreground text-background px-3 py-1 text-sm">
-                    My Custom UI
-                  </div>
-                  <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">
-                    Shadcn Components I Built
-                  </h2>
-                  <p className="text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                    I&apos;ve created several custom components that you can install directly into your project via the shadcn CLI.
-                  </p>
-                </div>
-              </div>
-            </BlurFade>
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-2 max-w-4xl mx-auto">
-              <BlurFade delay={BLUR_FADE_DELAY * 11}>
-                <div className="flex flex-col h-full overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm">
-                  <div className="p-6 flex-1 flex flex-col items-center justify-center min-h-[200px] border-b bg-muted/30">
-                    <AnimatedButton variant="primary">Hover Me!</AnimatedButton>
-                  </div>
-                  <div className="p-4 bg-muted/10 space-y-2">
-                    <h3 className="font-bold">Animated Button</h3>
-                    <code className="relative flex items-center justify-between rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-[10px] sm:text-xs overflow-hidden text-ellipsis whitespace-nowrap">
-                      npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c animated-button
-                    </code>
-                  </div>
-                </div>
-              </BlurFade>
-              <BlurFade delay={BLUR_FADE_DELAY * 11.1}>
-                <div className="flex flex-col h-full overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm">
-                  <div className="p-6 flex-1 flex flex-col items-center justify-center min-h-[200px] border-b bg-gradient-to-br from-indigo-500 to-purple-600">
-                    <GlassCard className="w-full text-white">Glassmorphism</GlassCard>
-                  </div>
-                  <div className="p-4 bg-muted/10 space-y-2">
-                    <h3 className="font-bold">Glass Card</h3>
-                    <code className="relative flex items-center justify-between rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-[10px] sm:text-xs overflow-hidden text-ellipsis whitespace-nowrap">
-                      npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c glass-card
-                    </code>
-                  </div>
-                </div>
-              </BlurFade>
-              <BlurFade delay={BLUR_FADE_DELAY * 11.2}>
-                <div className="flex flex-col h-full overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm">
-                  <div className="p-6 flex-1 flex flex-col items-center justify-center min-h-[200px] border-b bg-muted/30">
-                    <GradientText className="text-4xl">Stunning Text</GradientText>
-                  </div>
-                  <div className="p-4 bg-muted/10 space-y-2">
-                    <h3 className="font-bold">Gradient Text</h3>
-                    <code className="relative flex items-center justify-between rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-[10px] sm:text-xs overflow-hidden text-ellipsis whitespace-nowrap">
-                      npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c gradient-text
-                    </code>
-                  </div>
-                </div>
-              </BlurFade>
-              <BlurFade delay={BLUR_FADE_DELAY * 11.3}>
-                <div className="flex flex-col h-full overflow-hidden rounded-xl border bg-card text-card-foreground shadow-sm">
-                  <div className="p-6 flex-1 flex flex-col items-center justify-center gap-4 min-h-[200px] border-b bg-muted/30">
-                    <StatusBadge status="online" />
-                    <StatusBadge status="busy" />
-                  </div>
-                  <div className="p-4 bg-muted/10 space-y-2">
-                    <h3 className="font-bold">Status Badge</h3>
-                    <code className="relative flex items-center justify-between rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono text-[10px] sm:text-xs overflow-hidden text-ellipsis whitespace-nowrap">
-                      npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c status-badge
-                    </code>
-                  </div>
-                </div>
-              </BlurFade>
-            </div>
-            <BlurFade delay={BLUR_FADE_DELAY * 11.4}>
-                <div className="mt-8 flex flex-col items-center gap-4 border rounded-xl p-8 bg-muted/20">
-                  <h3 className="text-xl font-bold">Pricing Card</h3>
-                  <div className="w-full flex justify-center py-4 border-y my-4 bg-background">
-                     <PricingCard 
-                        title="Pro Plan" 
-                        description="For power users" 
-                        price="$29" 
-                        features={["All free features", "Unlimited projects", "Priority support"]} 
-                        isPopular={true} 
-                     />
-                  </div>
-                  <code className="relative rounded bg-muted px-4 py-2 font-mono text-[10px] sm:text-sm max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-center w-full">
-                    npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c pricing-card
-                  </code>
-                </div>
-            </BlurFade>
-          </div>
-        </section>
-      )}
 
-      {DATA.testimonials && (
-        <section id="testimonials">
-          <div className="space-y-6 w-full py-6">
-            <BlurFade delay={BLUR_FADE_DELAY * 12.5}>
-              <h2 className="text-xl font-bold text-center mb-6">What People Say</h2>
-            </BlurFade>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {DATA.testimonials.map((t, idx) => (
-                <BlurFade key={idx} delay={BLUR_FADE_DELAY * 13 + idx * 0.05}>
-                  <div className="border rounded-xl p-6 bg-card flex flex-col gap-4 h-full">
-                    <p className="italic text-muted-foreground">&quot;{t.text}&quot;</p>
-                    <div className="flex items-center gap-3 mt-auto">
-                      <Avatar className="size-10 border">
-                        <AvatarImage src={t.avatar} />
-                        <AvatarFallback>{t.name[0]}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-semibold text-sm">{t.name}</p>
-                        <p className="text-xs text-muted-foreground">{t.title}</p>
-                      </div>
-                    </div>
-                  </div>
-                </BlurFade>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
 
       <section id="latest-blogs">
         <div className="space-y-6 w-full py-12">

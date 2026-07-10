@@ -452,39 +452,7 @@ export const DATA = {
       links: [],
     },
   ],
-  customComponents: [
-    {
-      name: "animated-button",
-      title: "Animated Button",
-      description: "A button with framer-motion micro-interactions.",
-      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c animated-button",
-    },
-    {
-      name: "glass-card",
-      title: "Glass Card",
-      description: "A sleek card component with glassmorphism effects.",
-      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c glass-card",
-    },
-    {
-      name: "gradient-text",
-      title: "Gradient Text",
-      description:
-        "A highly customizable text component with smooth animated gradients.",
-      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c gradient-text",
-    },
-    {
-      name: "status-badge",
-      title: "Status Badge",
-      description: "An enhanced badge component with pulsing dot indicators.",
-      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c status-badge",
-    },
-    {
-      name: "pricing-card",
-      title: "Pricing Card",
-      description: "A modern pricing tier card ready for SaaS landing pages.",
-      cli: "npx shadcn@latest add https://raw.githubusercontent.com/PRANJALRANA11/Portfolio-latest/master/registry.json -c pricing-card",
-    },
-  ],
+
   openSource: [
     {
       title: "Superflex",
@@ -500,20 +468,7 @@ export const DATA = {
       icon: "github",
     },
   ],
-  testimonials: [
-    {
-      name: "John Doe",
-      title: "CTO @ Mentra",
-      text: "Pranjal is an exceptional engineer. He took ownership of our WebRTC implementation and delivered it flawlessly ahead of schedule.",
-      avatar: "https://i.pravatar.cc/150?u=1",
-    },
-    {
-      name: "Jane Smith",
-      title: "Software Engineer @ CodeMate",
-      text: "Working with Pranjal was a great experience. His ability to dissect complex problems and optimize performance by 30% was truly impressive.",
-      avatar: "https://i.pravatar.cc/150?u=2",
-    },
-  ],
+
   techStack: {
     frontend: ["React", "Next.js", "TypeScript", "Tailwind CSS"],
     backend: ["Node.js", "Python", "Go", "FastAPI"],
